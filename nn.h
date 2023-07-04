@@ -311,6 +311,27 @@ void matrix_derivative_sigmoid(Matrix m){
     matrix_multiply_element_wise(m, temp, m);
 }
 
+void matrix_derivative_relu(Matrix m){
+    for(int i = 0; i < m.rows; i++){
+        for(int j = 0; j < m.cols; j++){
+            if(MATRIX_AT(m, i, j)) MATRIX_AT(m, i, j) = 1;                                  
+        }
+    }
+}
+
+void matrix_derivative_tanh(Matrix m){
+    matrix_derivative_sigmoid(m);
+    matrix_multiply_by_constant(m, 2);
+}
+
+void matrix_derivative_leaky_relu(Matrix m, double leakage){
+    for(int i = 0; i < m.rows; i++){
+        for(int j = 0; j < m.cols; j++){
+            MATRIX_AT(m, i, j) = (MATRIX_AT(m, i, j) >= 0)?1:leakage;
+        }
+    }
+}
+
 Layer layer_alloc(int curr, int prev, char* active){
     Layer l;
     if(prev == -1){
@@ -352,6 +373,24 @@ void layer_activate(Layer l){
     return;
 }
 
+void layer_derivate(Layer l){
+    char* relu = "relu";
+    char* sigmoid = "sigmoid";
+    char* tanh = "tanh";
+    char* leakyRelu = "leakyRelu";
+    if(strcmp(relu, l.activation) == 0){
+        matrix_derivative_relu((l.activations));
+    }
+    if(strcmp(sigmoid, l.activation) == 0){
+        matrix_derivative_sigmoid((l.activations));
+    }
+    if(strcmp(tanh, l.activation) == 0){
+        matrix_derivative_tanh((l.activations));
+    }
+    if(strcmp(leakyRelu, l.activation) == 0){
+        matrix_derivative_leaky_relu((l.activations), l.leakage);
+    }
+}
 
 
 
@@ -468,7 +507,7 @@ void backpropagation(NeuralNetwork *nn, Matrix *input, Matrix *output, int itera
     int examples = (*input).rows;
     Matrix temp = matrix_alloc((*input).cols, 1);
     double cost;
-    for(int i = 0; i < iterations; i++){
+    for(int k = 0; k < iterations; k++){
         
         for(int j = 0; j < examples; j++){
             cost = nn_compute_cost(*nn, *input, *output, costFunction);
@@ -495,18 +534,28 @@ void backpropagation(NeuralNetwork *nn, Matrix *input, Matrix *output, int itera
                 free(temp.data);
             }
             for(int i = gg.layerCount-1; i > 0; i--){
-                Matrix t2 = matrix_alloc(gg.layers[i].activations.rows, 1);
-                matrix_copy(t2, (*nn).layers[i].activations);
-                matrix_derivative_sigmoid(t2);
-                matrix_multiply_element_wise(gg.layers[i].activations, gg.layers[i].activations, t2);
-                free(t2.data);
+                // Matrix t2 = matrix_alloc(gg.layers[i].activations.rows, 1);
+                // matrix_copy(t2, (*nn).layers[i].activations);
+                // matrix_derivative_sigmoid(t2);
+                // matrix_multiply_element_wise(gg.layers[i].activations, gg.layers[i].activations, t2);
+                // free(t2.data);
+                layer_derivate((*nn).layers[i]);
+                matrix_multiply_element_wise(gg.layers[i].activations, gg.layers[i].activations, (*nn).layers[i].activations);
                 Matrix weightsT = matrix_alloc(gg.layers[i].weights.cols, gg.layers[i].weights.rows);
                 for(int a = 0; a < gg.layers[i].weights.rows; a++){
                     for(int b = 0; b < gg.layers[i].weights.cols; b++){
-                        ///oh moi error prone code that I shall henceforth work with on a mac 
+
+                        ///oh moi error prone code that I shall henceforth work with on a mac
+                        MATRIX_AT(gg.layers[i].weights, a, b) = MATRIX_AT((*nn).layers[i-1].activations, b, 0)*MATRIX_AT(gg.layers[i].activations, a, 0);
                     }
                 }
                 matrix_transpose(weightsT, (*nn).layers[i].weights);
+                matrix_multiply(gg.layers[i-1].activations, weightsT, (*nn).layers[i].activations);
+                free(weightT.data);
+            }
+            for(int i = 1; i < gg.layerCount; i++){
+                matrix_multiply_by_constant(gg.layers[i].weights, (*nn).alpha);
+                matrix_subtract((*nn).layers[i].weights, (*nn).layers[i].weights, gg.layers[i].weights);
             }
         }
     }
@@ -524,7 +573,7 @@ void update_by_finite_difference(NeuralNetwork nn, Matrix input, Matrix output, 
     double costPlusDeltaCost, store, delta, cost;
     for(int c = 0; c < iterations; c++){
         cost = nn_compute_cost(nn, input, output, costFunction);
-        if(i == iterations-1){
+        if(c == iterations-1){
             printf("Cost evaluated to %lf\n", cost);
         }
         for(int i = 1; i < layerCount; i++){
@@ -559,7 +608,9 @@ void update_by_finite_difference(NeuralNetwork nn, Matrix input, Matrix output, 
 
 void train(NeuralNetwork nn, Matrix input, Matrix output, int iterations, int costFunction){
     //you can choose the optimization technique   
-    update_by_finite_difference(nn, input, output, iterations, costFunction);
+    // update_by_finite_difference(nn, input, output, iterations, costFunction);
+    backpropagation(&nn, input, output, iterations, costFunction);
+    
 }
 
 
