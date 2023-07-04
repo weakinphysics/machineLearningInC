@@ -551,7 +551,7 @@ void backpropagation(NeuralNetwork *nn, Matrix *input, Matrix *output, int itera
                 }
                 matrix_transpose(weightsT, (*nn).layers[i].weights);
                 matrix_multiply(gg.layers[i-1].activations, weightsT, (*nn).layers[i].activations);
-                free(weightT.data);
+                free(weightsT.data);
             }
             for(int i = 1; i < gg.layerCount; i++){
                 matrix_multiply_by_constant(gg.layers[i].weights, (*nn).alpha);
@@ -609,7 +609,7 @@ void update_by_finite_difference(NeuralNetwork nn, Matrix input, Matrix output, 
 void train(NeuralNetwork nn, Matrix input, Matrix output, int iterations, int costFunction){
     //you can choose the optimization technique   
     // update_by_finite_difference(nn, input, output, iterations, costFunction);
-    backpropagation(&nn, input, output, iterations, costFunction);
+    backpropagation(&nn, &input, &output, iterations, costFunction);
     
 }
 
